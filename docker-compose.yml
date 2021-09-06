@@ -1,0 +1,60 @@
+version: "3"
+services:
+  app:
+    build:
+      context: ./docker/app
+      dockerfile: Dockerfile
+    working_dir: /var/www/html
+    volumes:
+      - ./docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
+      - ./:/var/www/html
+    depends_on:
+      - laravel_nova_db
+    networks:
+      - web
+    environment:
+      COMPOSER_MEMORY_LIMIT: -1
+      XDEBUG_CONFIG: client_host=192.168.227.1 client_port=9003
+      PHP_IDE_CONFIG: serverName=Docker
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./docker/nginx/:/etc/nginx/conf.d/
+      - ./:/var/www/html:delegated
+    depends_on:
+      - app
+    labels:
+      traefik.enable: "true"
+      traefik.frontend.rule: "Host:${DOMAIN}"
+    networks:
+      - default
+      - web
+
+  laravel_nova_db:
+    image: mysql:5.7
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: rootpasswordmysql
+    volumes:
+      - mysqldata:/var/lib/mysql/
+      - ./docker/db:/docker-entrypoint-initdb.d
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
+  internal:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.227.0/28
+
+volumes:
+  mysqldata:
